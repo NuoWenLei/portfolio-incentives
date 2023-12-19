@@ -1,8 +1,42 @@
 Sharpe Ratio Original Article
 https://web.stanford.edu/~wfsharpe/art/sr/SR.htm
+DOI: 10.3905/jpm.1994.409501
 
 Marginal Contribution of Sharpe Ratio (on new assets instead of new strategies)
 https://papers.ssrn.com/sol3/papers.cfm?abstract_id=3824133
+DOI: 10.2139/ssrn.3824133
 
-Summary of Multi-Strategy Hedgefunds
+Summary of Multi-Strategy Hedge funds
 https://academic.oup.com/book/25365/chapter/192451560
+DOI: 10.1093/oso/9780190607371.003.0015
+
+Introduction to Alpha Design
+https://onlinelibrary.wiley.com/doi/abs/10.1002/9781119571278.ch1
+DOI: 10.1002/9781119571278.ch1
+
+Multi-Strategy Hedge funds timing their strategies
+https://dial.uclouvain.be/memoire/ucl/en/object/thesis%3A14504
+
+Diversification Strategies of Hedge funds
+https://www.pm-research.com/content/iijaltinv/15/2/75
+DOI: 10.3905/jai.2012.15.2.075
+
+Performance vs. Turnover
+https://arxiv.org/abs/1509.08110
+DOI: 10.48550/arXiv.1509.08110
+
+Age of AI Prediction in market modeling
+https://books.google.com/books?hl=en&lr=&id=ppx8EAAAQBAJ&oi=fnd&pg=PR7&dq=Igor+Tulchinsky&ots=3gvcBFqKmA&sig=nSaAUvCbX0pV31fNkc7CFdNoW3U#v=onepage&q=Igor%20Tulchinsky&f=false
+DOI: 10.7551/mitpress/13872.001.0001
+
+Examining Turnover costs
+https://link.springer.com/article/10.1007/BF01075172
+DOI: 10.1007/BF01075172
+
+Optimization Sharpe Ratio
+https://link.springer.com/article/10.1007/s10182-016-0270-3
+DOI: 10.1007/s10182-016-0270-3
+
+Formulaic Alpha from code
+https://onlinelibrary.wiley.com/doi/abs/10.1002/wilm.10525
+DOI: 10.1002/wilm.10525
