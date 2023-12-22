@@ -10,7 +10,6 @@ indent: false
 ---
 
 ```{r setup, include=FALSE}
-library("knitcitations")
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
@@ -20,28 +19,20 @@ This is an R Markdown document. Markdown is a simple formatting syntax for autho
 
 When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
 
-## Citation Example
+Example 1 [See @BayartDeGermont2017]
 
-Computation of Marginal Contribution of Sharpe Ratio and other performance ratios `r citep("10.2139/ssrn.3824133")`
+Example 2 [See @Benhamou2021]
+
+Example 3 [See @Sharpe1994]
+
+### References
+
+::: {#refs}
+:::
 
 
-## Bibliography
 
-`r citet("10.2139/ssrn.3824133")`
 
-`r citep("10.2139/ssrn.3824133")`
-
-`r citet("10.3905/jpm.1994.409501")`
-
-`r citet("10.1093/oso/9780190607371.003.0015")`
-
-```{r}
-bibliography(style="text")
-```
-
-```{r, echo=FALSE, message=FALSE}
-write.bibtex(file="references.bib")
-```
 
 
 

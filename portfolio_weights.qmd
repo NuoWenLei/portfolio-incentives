@@ -1,0 +1,542 @@
+---
+title: "Let Users Submit Portfolio Weights"
+author: "Nuo Wen Lei and David Kane"
+format: pdf
+output: pdf_document
+header-includes:
+    - \usepackage{setspace}\doublespacing
+    - \usepackage{amsmath}
+indent: false
+---
+
+```{r, include=FALSE}
+library(tidyverse)
+library(knitr)
+
+knitr::opts_chunk$set(echo=FALSE, warning=FALSE, message = FALSE)
+
+data <- tribble(
+  ~dollarInvested, ~dollarReturn, ~label,
+  1e09, 1e06, "Profit",
+  1e09 * 0.99, 1e06 * 0.99, ""
+)
+```
+
+# Executive Summary
+
+*We propose that Numerai users be allowed to submit portfolio weights rather than scores.*
+\
+
+First, portfolio weights make it easier to reward users for creating models that perform well when the Meta Model performs poorly. Second, portfolio weights make it easier to take real world constraints like liquidity and short locates more seriously. Third, portfolio weights make the calculation for user contribution to Numerai's overall success simpler and more transparent.
+\
+
+Consider a model that would have performed well in the first quarter of 2020 and the second quarter of 2023, but poorly otherwise, so that its overall performance was flat. We want to encourage users to create and stake such models because doing so would increase the Sharpe of Numerai's portfolio. Using portfolio weights makes this easier because it allows us to directly measure the marginal contribution of each user submission. Instead of treating a marginal dollar earned the same regardless of Meta Model performance, the payout formula should reward marginal dollars more highly during periods when the Meta Model performs poorly.
+\
+
+Portfolio weights allow us to incorporate real world constraints like liquidity and short locates more easily. Consider two submissions. The first submission includes mostly liquid names in the tails of the score. The second submission does not contain any liquid names in the tails. Even if both submissions have the same TC, the first submission is much more valuable to Numerai than the second submission. Similarly, short locates are straightforward to deal with in the context of portfolio weights but difficult to handle when users submit a vector of scores.
+\
+
+True Contribution is many things, easy to calculate is not one of them. There is no simple way to adjust scores for transaction cost. However, it is relatively straightforward to estimate the transaction cost for the trades associated with a vector of portfolio weights. Nor do we need stock return data to implement a portfolio weights approach. We can perform all the necessary calculations using the bucketed residual return vector, i.e., target. Since we are penalizing users based on liquidity, it does not matter whether this penalty is assessed in dollar space or in bucketed residual return space. The same reasoning applies to calculating payout. Furthermore, it is straightforward to ensure that user-submitted portfolio weights meet any set of exposure limits that we prefer.
+\
+
+A user's true value to Numerai is not simply a function of their forecast skill, instead it is a function of *transaction cost adjusted forecast skill conditional on Meta Model performance*. See the rest of this document for some implementation discussion.
+\
+
+We are going to explain everything in terms of raw stock returns (represented by the vector $r$) in this document, but all the same graphs and intuition would apply if instead of using raw stock returns, we use bucketed residual stock returns (represented by the vector $b$).
+\
+
+This document contains two parts: a Description of the proposal, and an Appendix which provides intuition about the importance of transaction cost adjustment.
+
+
+\newpage
+
+# Description
+
+## Definitions for Portfolio Weights as API
+
+$N$ is the number of stocks in the universe at a point in time and $i$ is an individual stock.
+\
+
+$s$ is a vector of user-submitted scores. $s_i$ is the score for stock $i$.
+\
+
+$r$ is the vector of raw stock returns. $r_i$ is the return for stock $i$.
+\
+
+$b$ is the vector of bucketed residual returns used to calculate payout. $b_i$ is the bucketed residual return for stock $i$. An example of the vector $b$ is target\_nomi20.
+\
+
+$w$ is the vector of portfolio weights that the user would submit to the portfolio weights API. $w_i$ is the weight for stock $i$. The portfolio weights $w$ would be required to mimic the long/short structure of a standard equity hedge fund portfolio.
+
+$$\sum_{i=1}^{N} w_i = 0$$
+
+$$\sum_{i=1}^{N} [w_i > 0] \cdot w_i = 1$$
+
+From which it follows that:
+
+$$\sum_{i=1}^{N} [w_i < 0] \cdot w_i = -1$$
+
+And:
+
+$$\sum_{i=1}^{N} |w_i| = 2$$
+
+Further constraints might be added, but it is not clear if such additions are either necessary or even useful. Nothing prevents users from neutralizing their portfolios to beta, sectors or any other factor. Some will choose to do so. Others will not.
+\
+
+$PR = w \cdot r$ is the portfolio return over a round.
+\
+
+$PB = w \cdot b$ is a unit-less measure of pseudo portfolio return in bucketed residual return space.
+\
+
+We have seen the term of **Meta Model** used in two ways. The first way is as a vector of length N where each value is between 0 and 1, which is calculated as the stake-weighted average of user-submitted scores. The second way is as an N-length vector of weights that has been created via a complex optimization process, which uses the stake-weighted scores as one of its inputs. Therefore, we clarify between **Meta Model scores** and **Meta Model weights**. Since Meta Model weights are also in the form of portfolio weights, that means that in the same way we have portfolio return $PR$ and portfolio bucket $PB$, we can define Meta Model return.
+\
+
+$MR$ is defined as the Meta Model weights times $r$.
+\
+
+$MB$ is defined as the Meta Model weights times $b$.
+\
+
+We refer to the starting Long Market Value invested in a portfolio as $LMV$. Then, we can define portfolio dollar return as $PR \cdot LMV$ and Meta Model dollar return as $MR \cdot LMV$.
+
+## Sharpe Contribution {#sharpe}
+
+This section describes a diagram that shows the Sharpe contribution of differing portfolios over a fixed time period, e.g., 20 days. In this section, we ignore liquidity cap and transaction costs.
+\
+
+The x-axis of the diagram is the starting $LMV$ of the hedge fund portfolio at the start of the 20 days and the y-axis is the portfolio dollar return after the 20 days.
+
+```{r, echo=FALSE, warning=FALSE}
+ggplot(data = data %>% slice(1), aes(x = dollarInvested, y = dollarReturn)) +
+  geom_point() +
+  geom_vline(xintercept = 1e+09, linetype="dotted", 
+                color = "red", size=.5) +
+  scale_x_continuous(labels = c("0.99 billion", "1 billion"), breaks=c(9.9e+08, 1e9), limits = c(9.85e+08, 1.01e+09)) +
+  scale_y_continuous(labels = c("0.99 million", "1 million"), breaks=c(0.99e+06, 1e6), limits = c(0.985e+06, 1.01e+06)) +
+  labs(
+    title="Starting LMV and Dollar Return Space",
+    subtitle="We can place any portfolio in a space defined by\nits starting LMV and Dollar Return over a time period.",
+    x = "Starting LMV ($)",
+    y = "Portfolio Dollar Return ($)",
+    caption = "Any investment that has a starting LMV of $1 billion would be a point on the dotted red line."
+  )
+```
+
+Suppose a hedge fund invested \$1 billion at the start of 20 days and the return over this 20 days is \$1 million of profit. This investment and return would be represented as the black point on the diagram above.
+
+```{r, echo=FALSE, warning=FALSE}
+ggplot(data = data, aes(x = dollarInvested, y = dollarReturn)) +
+  geom_point() +
+  geom_vline(xintercept = 1e+09, linetype="dotted", 
+                color = "red", size=.5) +
+  scale_x_continuous(labels = c("0.99 billion", "1 billion"), breaks=c(9.9e+08, 1e9), limits = c(9.85e+08, 1.01e+09)) +
+  scale_y_continuous(labels = c("0.99 million", "1 million"), breaks=c(0.99e+06, 1e6), limits = c(0.985e+06, 1.01e+06)) +
+  labs(
+    title="Starting LMV and Dollar Return Space",
+    subtitle="We can place multiple portfolios or the same portfolio with different starting LMV.",
+    x = "Starting LMV ($)",
+    y = "Portfolio Dollar Return ($)"
+  )
+```
+
+Suppose the hedge fund decides to invest in 99% of their \$1 billion instead of the entire billion. Then the black dot that is not on the red line represents this investment and return.
+\
+
+If a hedge fund removes 1% of their portfolio and invests it directly into a different user-submitted portfolio, then we can plot some possible investment and returns in the diagram below. In practice, changing any part of a portfolio requires transaction costs. However, we ignore these costs for simplicity.
+
+```{r, echo=FALSE, warning=FALSE}
+data <- tribble(
+  ~dollarInvested, ~dollarReturn, ~label, ~kind,
+  1e09, 1e06, "Original", "Original",
+  1e09 * 0.99, 1e06 * 0.99, "", "Original"
+)
+
+user_influenced_data <- tribble(
+  ~dollarInvested, ~dollarReturn, ~kind, ~label,
+  1e09, 1.004e06, "User-influenced", "User-influenced",
+  1e09 * 0.99, 1e06 * 0.99, "User-influenced", ""
+)
+
+user_influenced_data %>% 
+  bind_rows(data) %>% 
+  ggplot(aes(x = dollarInvested, y = dollarReturn, color=kind, group=kind, label=label)) +
+  geom_point() + geom_text(hjust=-0.2, vjust=0) + geom_line() +
+  geom_vline(xintercept = 1e+09, linetype="dotted", 
+                color = "red", size=.5) +
+  scale_x_continuous(labels = c("0.99 billion", "1 billion"), breaks=c(9.9e+08, 1e9), limits = c(9.85e+08, 1.01e+09)) +
+  scale_y_continuous(labels = c("0.99 million", "1 million"), breaks=c(0.99e+06, 1e6), limits = c(0.985e+06, 1.01e+06)) +
+  labs(
+    title="Original vs. User-influenced Returns",
+    subtitle="We can compare the returns of different portfolios with the same starting LMV.",
+    x = "Starting LMV ($)",
+    y = "Portfolio Dollar Return ($)",
+    caption = "A line drawn from the origin to any portfolio point shows the trend of the portfolio's dollar return\nover increments of starting LMV."
+  ) + theme(legend.position="none")
+```
+
+The red points in this diagram represents the original portfolio investments at 99% and 100% of \$1 billion The blue point represents the portfolio investment and return if 1% of the starting $LMV$ had been invested in a particular user.
+\
+
+User portfolios can either make more or less than the original portfolio. This diagram shows the addition of a user portfolio that would have made more than the original portfolio, hence the blue point is higher than the red point on the red dotted line.
+\
+
+We now consider the 4 scenarios based on whether the original portfolio resulted in a profit or loss and whether the user portfolio would have performed better or worse than the original portfolio.
+\
+
+The 4 scenarios are listed here for clarity:
+
+-   Original made more than User
+-   Original made less than User
+-   Original lost more than User
+-   Original lost less than User
+
+```{r, echo=FALSE, warning=FALSE}
+data <- tribble(
+  ~dollarInvested, ~dollarReturn, ~label,
+  1e09, 1e06, "P",
+  1e09, -1e06, "L")
+
+user_influenced_data <- tribble(
+  ~dollarInvested, ~dollarReturn, ~kind, ~label,
+  1e09, 1.25e06, "User-influenced Profit", "A",
+  1e09, 0.75e06, "User-influenced Profit", "B",
+  1e09, -0.75e06, "User-influenced Loss", "C",
+  1e09, -1.25e06, "User-influenced Loss", "D"
+)
+
+data %>% mutate(kind = "Original Investment") %>% 
+  bind_rows(user_influenced_data) %>% 
+  ggplot(aes(x = dollarInvested, y = dollarReturn, color=kind, label = label)) +
+  geom_point() + geom_text(hjust=2, vjust=0) +
+  geom_vline(xintercept = 1e+09, linetype="dotted", 
+                color = "red", size=.5) +
+  scale_x_continuous(labels = c("0.99 billion", "1 billion"), breaks=c(9.9e+08, 1e9), limits = c(9.85e+08, 1.01e+09)) +
+  scale_y_continuous(labels = c("-1 million", "0", "1 million"), breaks=c(-1e6, 0, 1e6), limits = c(-1.5e6, 1.5e6)) +
+  labs(
+    x = "Starting LMV ($)",
+    y = "Portfolio Dollar Return ($)",
+    title = "Four Scenarios of User Contribution",
+    subtitle = "The user portfolio can either be a positive or negative addition.\nAnd the original portfolio can either have profited or lost."
+    ) + theme(legend.position="none")
+```
+
+The blue and green points represent the results of the 4 scenarios described previously. The blue points represent the variation in returns when the original portfolio made money and the green dots represent the variation when the original portfolio lost money.
+\
+
+This diagram, however, does not adjust for transaction cost. We can create a simple illustration of how that would affect the diagram by setting a fixed transaction cost, e.g., \$100,000, for all user-influenced portfolios.
+\
+
+```{r, echo=FALSE, warning=FALSE}
+data <- tribble(
+  ~dollarInvested, ~dollarReturn, ~label,
+  1e09, 1e06, "P",
+  1e09, -1e06, "L")
+
+user_influenced_data <- tribble(
+  ~dollarInvested, ~dollarReturn, ~kind, ~label,
+  1e09, 1.15e06, "User-influenced Profit", "A",
+  1e09, 0.65e06, "User-influenced Profit", "B",
+  1e09, -0.85e06, "User-influenced Loss", "C",
+  1e09, -1.35e06, "User-influenced Loss", "D"
+)
+
+data %>% mutate(kind = "Original Investment") %>% 
+  bind_rows(user_influenced_data) %>% 
+  ggplot(aes(x = dollarInvested, y = dollarReturn, color=kind, label = label)) +
+  geom_point() + geom_text(hjust=2, vjust=0) +
+  geom_vline(xintercept = 1e+09, linetype="dotted", 
+                color = "red", size=.5) +
+  scale_x_continuous(labels = c("0.99 billion", "1 billion"), breaks=c(9.9e+08, 1e9), limits = c(9.85e+08, 1.01e+09)) +
+  scale_y_continuous(labels = c("-1 million", "0", "1 million"), breaks=c(-1e6, 0, 1e6), limits = c(-1.5e6, 1.5e6)) +
+  labs(
+    x = "Starting LMV ($)",
+    y = "Portfolio Dollar Return ($)",
+    title = "Four Scenarios of Transaction Cost Adjusted User Contribution ",
+    subtitle = "A constant transaction cost uniformly shifts down\nall user-influenced portfolio dollar returns."
+    ) + theme(legend.position="none")
+```
+All blue and green points represent user-influenced portfolios, therefore the dollar return for each portfolio is shifted down by a constant transaction cost of \$100,000.
+\
+
+From the diagram, we can derive 4 distances, each between a user-influenced portfolio dollar return and the original portfolio dollar return.
+
+-   Distance $\overrightarrow{PA}$ between point A and point P
+-   Distance $\overrightarrow{PB}$ between point B and point P
+-   Distance $\overrightarrow{LC}$ between point C and point L
+-   Distance $\overrightarrow{LD}$ between point D and point L
+
+Each of these distances describes how much the investment would have made if the original portfolio replaced 1% of its starting $LMV$ with a corresponding portfolio. For example, distance $\overrightarrow{PA}$ shows that the investment would have made \$150,000 more than the original return P if 1% was invested in portfolio A. In other words, the marginal contribution of portfolio A is the distance $\overrightarrow{PA}$. Any user-submitted portfolio's marginal contribution to the original portfolio can be categorized as one of A, B, C, D.
+\
+
+Now suppose we compare points A and C on the diagram. The marginal contribution of both portfolios is \$150,000 from their respective original portfolio. However, while the marginal contribution may be the same, the marginal Sharpe contribution is different when comparing in the long term.
+\
+
+Two portfolios can have the same average contribution over many time periods of 20 days. However if one portfolio earns contributions mostly in the C area and another portfolio earns contributions mostly in the A area, then the portfolio that earns more C area contributions would also increase the Sharpe ratio more by lowering the variance of the original portfolio.
+\
+
+Therefore, we should incentivize users to submit portfolios that would be plotted in the C area, i.e., portfolios that perform well when the Meta Model performs poorly.
+
+## Payout with Portfolio Weights
+
+The payout system should be how Numerai incentivizes users to submit portfolios that performs well especially when the Meta Model is performing poorly.
+
+### Payout with Portfolio Weights
+
+The payout for a user submission would be an equation based on the following factors:
+
+-   Submitted Portfolio Weights $w$
+-   Raw Stock Returns $r$ (or Bucketed Residual Return $b$)
+-   Meta Model return $MR$ (or Meta Model bucket $MB$)
+
+### Payout Formula with Meta Model Performance {#payout_mm_performance}
+
+Given a submitted vector of portfolio weights $w$ and the raw stock return $r$, we can calculate the portfolio return $PR$ without taking transaction cost into account. $PR$ is represented as the return percentage of the starting long market value $LMV$.
+
+$$PR = w \cdot r$$
+
+We adjust for some constant transaction cost $t$ based on the final diagram in the [Sharpe Contribution section](sharpe), defining $APR$ as the transaction cost adjusted portfolio return.
+
+$$APR = PR - t$$
+
+In order to account for Meta Model return $MR$, we define a constant $c$ that amplifies the portfolio return when the Meta Portfolio loses money. We refer to the portfolio payout conditionally scaled by $c$ as $PP$.
+
+$$PP =
+\begin{cases}
+    c \cdot APR& \text{if } MR < 0\\
+    APR              & \text{otherwise}
+\end{cases}$$
+
+Therefore, the $PP$ of a portfolio is the payout percentage of NMR return or loss based on the portfolio's stake.
+\
+
+Calculating the payout with portfolio weights does not require providing the raw stock returns. Instead, we can do all the necessary calculations in the same space as the bucketed residual returns by replacing all usages of stock return $r$ with bucketed residual return $b$. Then, we may use portfolio bucket $PB$ instead of portfolio return $PR$, which means the result will not be a percentage but some unit-less measure of residual score.
+
+$$PB = w \cdot b$$
+
+The constant used to amplify portfolio return conditional on Meta Portfolio performance $MR$ has a different value due to being in bucketed residual return space, so we denote the adjusted constant as $c_b$. Similarly, the constant transaction cost is in a different unit, so we denote the adjusted transaction cost constant as $t_b$. Additionally, in order to scale the final result into a range resembling percentage return, we introduce another constant $g$. Therefore, $PP$ calculated with bucketed residual return $b$ uses different constant values.
+
+$$PP =
+\begin{cases}
+    \frac{c_b \cdot (PB - t_b)}{g}& \text{if } MR < 0\\
+    \frac{PB - t_b}{g}              & \text{otherwise}
+\end{cases}$$
+
+We note that while $c$, $c_b$, $t$, $t_c$, $g$  are referred to as constants for simplicity, they may be defined as functions of other variables.
+
+\newpage
+
+# Appendix
+
+The purpose of this appendix is to provide intuition as to why transaction cost adjustment is so important, especially as assets under management at Numerai grow.
+
+## Importance of Transaction Cost
+
+We describe a diagram that shows the possible ways an additional portfolio can contribute to a pre-existing original portfolio over a fixed time period, e.g., 20 days. We define an additional portfolio as a portfolio with a new set of weights that is independent (not necessarily different) from the original portfolio.
+\
+
+The x-axis of the diagram is the starting $LMV$ of the hedge fund portfolio at the start of the 20 days and the y-axis is the portfolio dollar return of the hedge fund after the 20 days.
+
+```{r, echo=FALSE, warning=FALSE}
+data <- tribble(
+  ~dollarInvested, ~dollarReturn, ~label,
+  0, 0, "",
+  1e09, 1e09 * 0.05, "P"
+)
+
+ggplot(data = data %>% slice(1:2), aes(x = dollarInvested, y = dollarReturn, group=1)) +
+  geom_line() +
+  geom_point() +
+  geom_vline(xintercept = 1e+09, linetype="dotted", 
+                color = "red", size=.5) +
+  scale_x_continuous(labels = c("0.5 billion", "1 billion", "1.5 billion"), breaks=c(5e+08, 1e9, 1.5e9), limits = c(0, 2e09)) +
+  scale_y_continuous(labels = c("0", "50 million", "100 million"), breaks=c(0, 5e07, 1e08), limits = c(0, 1e08)) +
+  labs(
+    title="Portfolio Dollar Return over Starting LMV",
+    subtitle="A portfolio's dollar return scales linearly with starting LMV\nwhen ignoring transaction costs.",
+    x = "Starting LMV ($)",
+    y = "Portfolio Dollar Return ($)"
+  )
+```
+
+Ignoring liquidity and transaction costs, a hedge fund's investment in their original portfolio would linearly scale with their return. Suppose a hedge fund's original portfolio has a return rate of 5%, then any point on the black line shows what the dollar return (y) of the portfolio would be for any amount of dollars invested (x). For example, the dotted red line represents an investment of \$1 billion and the black dot on the red line represents the dollar return (\$50 million) of a portfolio with a return rate of 5% given the starting $LMV$ of \$1 billion For demonstration purposes, we call the black line the original portfolio at different amount of money invested. Additionally, we call the 5% return rate of the original portfolio the original return rate.
+\
+
+Building from the original portfolio, we introduce three additional portfolios with extra investments of \$500 million and consider how the diagram changes with each.
+
+-   Portfolio A (7%): new return rate \> original return rate
+-   Portfolio B (2%): 0 \< new return rate \< original return rate
+-   Portfolio C (-2%): new return rate \< 0
+
+```{r, echo=FALSE, warning=FALSE}
+additional_portfolios <- tribble(
+  ~dollarInvested, ~dollarReturn, ~group,
+  1e09, 1e09 * 0.05, "A",
+  1.5e09, 1e09 * 0.05 + 5e08 * .07, "A",
+  1e09, 1e09 * 0.05, "B",
+  1.5e09, 1e09 * 0.05 + 5e08 * .02, "B",
+  1e09, 1e09 * 0.05, "C",
+  1.5e09, 1e09 * 0.05 - 5e08 * .02, "C"
+)
+
+data %>% slice(1:2) %>% mutate(group = "Original") %>% 
+  bind_rows(additional_portfolios) %>% 
+  ggplot(aes(x = dollarInvested, y = dollarReturn, group=group, color=group)) +
+  geom_line() +
+  geom_point() +
+  geom_vline(xintercept = 1e+09, linetype="dotted", 
+                color = "red", size=.5) +
+  scale_x_continuous(labels = c("0.5 billion", "1 billion", "1.5 billion"), breaks=c(5e+08, 1e9, 1.5e9), limits = c(0, 2e09)) +
+  scale_y_continuous(labels = c("0", "50 million", "100 million"), breaks=c(0, 5e07, 1e08), limits = c(0, 1e08)) +
+  labs(
+    x = "Starting LMV ($)",
+    y = "Portfolio Dollar Return ($)",
+    title = "Portfolio investment and returns",
+    subtitle = "We compare different additional portfolios building upon the same original portfolio."
+  ) + guides(color=guide_legend(title="Additional Portfolios"))
+```
+
+On this diagram, an extra initial investment shifts the point to the right, and each of the additional portfolios create a new combined portfolio from the original portfolio, which extends from the original investment and return.
+\
+
+An additional portfolio with a positive return rate would earn positive returns from the extra investment, and this return would be added onto the original portfolio returns. However, a negative return rate would create negative returns and eat into the original portfolio returns.
+\
+
+Until this point, all diagrams and calculations are under the assumption of no transaction costs. In practice, the larger the investment, the higher the transaction costs due to the restriction of stock liquidity caps. The rate at which transaction cost increases relative to dollars invested is based on the liquidity capacity size of a stock.
+
+```{r, message=FALSE, warning = FALSE}
+curve_data <- tribble(
+  ~dollarInvested, ~dollarReturn,
+  0, 0,
+  1e8, 19e4,
+  3e8, 51e4,
+  7e8, 91e4,
+  9e8, 99e4,
+  1e09, 1e06,
+)
+
+ggplot(curve_data, aes(x=dollarInvested, y = dollarReturn)) +
+  geom_smooth(method = "loess", se = FALSE) +
+  scale_x_continuous(labels = c("0", "0.5 billion", "1 billion"), breaks=c(0, 0.5e9, 1e9), limits = c(0, 1e9)) +
+  scale_y_continuous(labels = c("0", "0.5 million", "1 million"), breaks=c(0, 0.5e6, 1e6), limits = c(0, 1e06)) +
+  labs(
+    title = "Portfolio Dollar Return over Starting LMV at Scale",
+    subtitle = "Liquidity and transaction cost curves the originally linear scaling.",
+    x = "Starting LMV ($)",
+    y = "Portfolio Dollar Return ($)"
+  )
+```
+
+As the initial investment grows larger, the transaction costs to execute a set of portfolio weights grows exponentially due to its liquidity capacity. Thus the actual return of a set of portfolio weights at different levels of initial investment would look more like the diagram above where the return does not scale linearly with the investment. In fact, the combination of the specific weights in the additional portfolio and the additional dollar amount to be invested determines whether the linear contribution assumption is reasonable.
+\
+
+We apply this transaction cost scaling relationship to our previous diagram of different additional portfolio.
+
+```{r, message=FALSE, warning = FALSE}
+additional_portfolios <- tribble(
+  ~dollarInvested, ~dollarReturn, ~group,
+  1e09, 1e09 * 0.05, "A",
+  1.1e09, 1e09 * 0.05 + 1e08 * .07, "A",
+  1.2e09, 1e09 * 0.05 + 2e08 * .06, "A",
+  1.3e09, 1e09 * 0.05 + 3e08 * .047, "A",
+  1.4e09, 1e09 * 0.05 + 4e08 * .033, "A",
+  1.5e09, 1e09 * 0.05 + 5e08 * .02, "A",
+  1e09, 1e09 * 0.05, "B",
+  1.1e09, 1e09 * 0.05 + 1e08 * .02, "B",
+  1.2e09, 1e09 * 0.05 + 2e08 * .01, "B",
+  1.3e09, 1e09 * 0.05 + 3e08 * -.003, "B",
+  1.4e09, 1e09 * 0.05 + 4e08 * -.017, "B",
+  1.5e09, 1e09 * 0.05 + 5e08 * -.03, "B",
+  1e09, 1e09 * 0.05, "C",
+  1.1e09, 1e09 * 0.05 + 1e08 * -.02, "C",
+  1.2e09, 1e09 * 0.05 + 2e08 * -.03, "C",
+  1.3e09, 1e09 * 0.05 + 3e08 * -.043, "C",
+  1.4e09, 1e09 * 0.05 + 4e08 * -.057, "C",
+  1.5e09, 1e09 * 0.05 + 5e08 * -.070, "C",
+
+)
+ggplot(additional_portfolios, aes(x = dollarInvested, y = dollarReturn, group=group, color=group)) +
+  geom_smooth(method = "loess") +
+  scale_x_continuous(labels = c("1 billion", "2 billion", "3 billion"), breaks=c(1e9, 2e9, 3e9), limits = c(1e9, 3e9)) +
+  scale_y_continuous(labels = c("0", "50 million", "100 million"), breaks=c(0, 0.5e8, 1e8), limits = c(0, 1e08)) +
+  geom_vline(xintercept = 1e+09, linetype="dotted", 
+                color = "red", size=.5) +
+  geom_vline(xintercept = 1.5e+09, linetype="dotted", 
+                color = "blue", size=.5) +
+  labs(
+    x = "Starting LMV ($)",
+    y = "Portfolio Dollar Return ($)",
+    title = "Liquidity Adjusted Portfolio Dollar Return over Starting LMV",
+    subtitle = "We compare different portfolios after considering liquidity and transaction cost."
+  )
+```
+
+This diagram shows a more realistic representation of how different additional portfolios would perform over different amounts of additional investment. This diagram shows that if the new portfolio weights are invested in a lot of stocks with small liquidity cap, then each marginal dollar invested curves the marginal return by applying a larger transaction cost.
+\
+
+See for example portfolio B. The initial portfolio return rate is 2%, however with the exponential increase in transaction costs, the marginal return can become negative and eventually eat into the original portfolio returns.
+\
+
+It is important to note that the point at which a portfolio's marginal return curve hits the total investment line (blue dotted line) is the actual return of the portfolio. Therefore, although the marginal return of portfolio A is negative when hitting the total investment line, the total return from portfolio A is still positive.
+\
+
+In this diagram, the liquidity is consistent over the different additional portfolios, therefore it is easy to see which portfolio would perform the best. However, additional portfolios vary both in terms of liquidity and return rates. Therefore, we demonstrate a more difficult choice of additional portfolios.
+\
+
+For the next diagram, we compare three portfolios with different initial return rates and liquidity.
+
+-   Portfolio A: return rate of 15%, low liquidity stocks
+-   Portfolio B: return rate of 10%, mid liquidity stocks
+-   Portfolio C: return rate of 5%, high liquidity stocks
+
+```{r, message = FALSE, warning = FALSE}
+additional_portfolios <- tribble(
+  ~dollarInvested, ~dollarReturn, ~group,
+  1e09, 1e09 * 0.05, "A",
+  1.1e09, 1e09 * 0.05 + 1e08 * .15, "A",
+  1.2e09, 1e09 * 0.05 + 2e08 * .10, "A",
+  1.3e09, 1e09 * 0.05 + 3e08 * .05, "A",
+  1.4e09, 1e09 * 0.05 + 4e08 * -.01, "A",
+  1.5e09, 1e09 * 0.05 + 5e08 * -.10, "A",
+  1e09, 1e09 * 0.05, "B",
+  1.1e09, 1e09 * 0.05 + 1e08 * .10, "B",
+  1.2e09, 1e09 * 0.05 + 2e08 * .08, "B",
+  1.3e09, 1e09 * 0.05 + 3e08 * .057, "B",
+  1.4e09, 1e09 * 0.05 + 4e08 * .030, "B",
+  1.5e09, 1e09 * 0.05 + 5e08 * .000, "B",
+  1e09, 1e09 * 0.05, "C",
+  1.1e09, 1e09 * 0.05 + 1e08 * .05, "C",
+  1.2e09, 1e09 * 0.05 + 2e08 * .05, "C",
+  1.3e09, 1e09 * 0.05 + 3e08 * .049, "C",
+  1.4e09, 1e09 * 0.05 + 4e08 * .047, "C",
+  1.5e09, 1e09 * 0.05 + 5e08 * .043, "C",
+
+)
+ggplot(additional_portfolios, aes(x = dollarInvested, y = dollarReturn, group=group, color=group)) +
+  geom_smooth(method = "loess") +
+  geom_point() +
+  scale_x_continuous(labels = c("1 billion", "", "1.25 billion", "", "1.5 billion"), breaks=c(1e9, 1.125e9, 1.25e9, 1.375e9,1.5e9), limits = c(1e9, 1.5e9)) +
+  scale_y_continuous(labels = c("0", "50 million", "100 million"), breaks=c(0, 0.5e8, 1e8), limits = c(0, 1e08)) +
+  geom_vline(xintercept = 1e+09, linetype="dotted", 
+                color = "red", size=.5) +
+  geom_vline(xintercept = 1.2e+09, linetype="dotted", 
+                color = "blue", size=.5) +
+  geom_vline(xintercept = 1.3e+09, linetype="dotted", 
+                color = "blue", size=.5) +
+  geom_vline(xintercept = 1.5e+09, linetype="dotted", 
+                color = "blue", size=.5) +
+labs(
+    x = "Starting LMV ($)",
+    y = "Portfolio Dollar Return ($)",
+    title = "Liquidity Adjusted Portfolio Dollar Return over Starting LMV",
+    subtitle = "We compare additional portfolios with different liquidity and return rates."
+  )
+```
+
+In this diagram, each portfolio has a different initial return rate and liquidity. Comparing the two extremes, Portfolio A has an initial return rate of 15% but invests in low liquidity stocks and therefore is restricted by higher transaction costs while Portfolio C has an initial return rate of 5% but invests in high liquidity stocks and therefore transaction costs increase at a slow rate.
+\
+
+The optimal portfolio in this case really depends on how much is being invested into this portfolio. If an additional \$200 million are invested, Portfolio A is optimal. However, if an additional \$500 million are invested, Portfolio C is the best choice.
+\
+
+To summarize, we show that the true value of a portfolio depends on how much money is being invested. Additionally, while the dollar return from the initial return rate of a portfolio scales linearly with the dollars invested, the transaction cost scales exponentially due to liquidity. Therefore, the initial return rate of a portfolio at any point cannot solely determine which portfolio is the best option to invest in.
