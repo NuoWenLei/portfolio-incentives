@@ -1,0 +1,41 @@
+Abstract
+
+- 1st sentence
+  - Numerai is an investment fund, how big is it, dollars invested, collects information from users
+
+- 2nd sentence
+  - users submit scores for stocks in the stock universe, Numerai then combines these scores into a metamodel
+
+- 3rd
+  - Participants are paid on the correlation between scores and future returns
+
+- 4th
+  - we propose Numerai let users submit a vector of portfolio weights instead of scores and are paid on the basis of transaction cost adjusted performance of weights
+
+- 5th
+  - directly encourages participants to submit portfolios that improve Numerai's realized (based on actual implemented results) sharpe ratio
+
+Introduction
+- Turns each abstract sentence into a paragraph
+
+- 1st
+  - Numerai details, include article of it from [bloomberg]
+
+- 2nd
+
+
+- 3rd
+  - how do they get paid now, what are possible flaws
+    - small cap stocks don't matter
+
+- 4th
+  - we say provide portfolio weights, define weights
+
+- 5th
+  - additional operations you can do with portfolio weights
+  - incentivize participants to submit scores that are more likely to increase the realized sharpe ratio of Numerai hedge fund
+
+Conclusion
+- Include some summary version of abstract
+- paragraphs reviewing abstract, similar to introduction
+- Add possible future improvements/directions going from this paper
