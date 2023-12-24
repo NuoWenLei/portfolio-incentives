@@ -22,6 +22,25 @@ data <- tribble(
 )
 ```
 
+# Abstract
+
+Numerai is an investment fund with $___ in assets under management that collects participant strategies based on data that Numerai provides. Participants submit scores periodically for stocks in a pre-determined universe, and Numerai then combines these submissions into a metamodel. Participants are paid on the correlation between their scores and future returns under the assumption that all metamodel predicted moves are realized. In this paper, we propose that users submit portfolio weights instead of scores and are paid based on the basis of performance adjusted for transaction cost. This new method of submission directly incentivizes participants to submit portfolios that improve Numerai's realized Sharpe ratio.
+
+# Introduction
+
+[Numerai details, include article of it from [bloomberg]]
+
+The submission system currently lets participants submit scores for each of the stocks. Numerai ranks these scores such that the magnitude of the scores are not important. The score of each stock for each participant's submission is weighted only by its relative rank to other scores provided in the submission. Additionally, Numerai obfuscates the data that they provide by anonymizing every stock and bucketizing and normalizing every feature. This obfuscation forces participants to use data science methods to create submission scores.
+
+[Current payment method, MMC]
+
+[Talk about how are portfolio weights different from scores, what are its constraints, long + short]
+We introduce portfolio weights to more directly incenvitize participants. We define portfolio weights as a vector of N values where N is the number of stocks in the universe. Since Numerai invests in both long and short positions, the submitted weights should also allow negative values to represent short positions. Therefore, the constraints for a submission of weights is that the sum of all weights must be 0, the sum of all positive weights must be 1, and the sum of all negative weights must be -1. 
+
+[additional possibilities with formatting as portfolio weights]
+Portfolio weights allow the calculation of each participant's payout individually, therefore we can also introduce other incentives such as a penalty for transaction cost or liquidity.
+
+
 # Executive Summary
 
 *We propose that Numerai users be allowed to submit portfolio weights rather than scores.*
