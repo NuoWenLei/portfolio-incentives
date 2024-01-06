@@ -28,18 +28,18 @@ Numerai is a hedge fund with $300 million in assets under management that collec
 
 # Introduction
 
-Numerai is a hedge fund that invests based on the wisdom of the crowd. As [Bloomberg](https://www.bloomberg.com/news/articles/2023-02-28/tudor-jones-backed-quant-jumps-20-as-crowdsourced-bets-pay-off) describes, the company collates trading ideas submitted from participants who could be freelance data wonks, engineers and scientists with some free time. Based on the results of their submissions, these participants are then rewarded with its native cryptocurrency, Numeraire (NMR).
+Numerai is a hedge fund that invests based on the wisdom of the crowd. As [Bloomberg](https://www.bloomberg.com/news/articles/2023-02-28/tudor-jones-backed-quant-jumps-20-as-crowdsourced-bets-pay-off) describes, the company collates trading ideas submitted from participants who could be freelance data wonks, engineers and scientists with some free time. These submissions after being pooled, weighted by participant stakes, and neutralized to market risk factors, become the Meta Model that Numerai invests in. Based on the results of the Meta Model and the contribution of each participant's submission to the Meta Model, these participants are rewarded with its native cryptocurrency, Numeraire (NMR).
 
 The submission system currently lets participants submit scores for each of the stocks. Numerai ranks these scores such that the magnitude of the scores are not important. The score of each stock for each participant's submission is weighted only by its relative rank to other scores provided in the submission. Additionally, Numerai obfuscates the data that they provide by anonymizing every stock and bucketizing and normalizing every feature. This obfuscation forces participants to use data science methods to create submission scores.
 
-[Current payment method, MMC]
+Numerai currently evaluates participant submissions against the live market target using a method called MMC or Meta Model Contribution. This method first neutralizes all individual submissions to the Meta Model, and then calculates the covariance between the live market target and each participant's neutralized submission. The idea is that a higher covariance represents a stronger unique positive contribution to the Meta Model, and therefore should be rewarded more. [Should we talk about flaws?]
 
 We introduce portfolio weights to more directly incenvitize participants. We define portfolio weights as a vector of N values where N is the number of stocks in the universe. Since Numerai invests in both long and short positions, the submitted weights should also allow negative values to represent short positions. Therefore, the constraints for a submission of weights is that the sum of all weights must be 0, the sum of all positive weights must be 1, and the sum of all negative weights must be -1. 
 
 Portfolio weights allow each participant's payout to be calculated individually, which differs from MMC. Due to this individuality, we can also introduce other individual incentives such as penalties for transaction costs or liquidity without worrying about how these penalties would affect the payment of other participants.
 
 
-# Executive Summary
+# Executive Summary (WHERE TO PUT THIS?)
 
 *We propose that Numerai users be allowed to submit portfolio weights rather than scores.*
 \
@@ -67,7 +67,7 @@ This document contains two parts: a Description of the proposal, and an Appendix
 
 \newpage
 
-# Description
+# Methodology
 
 ## Definitions for Portfolio Weights as API
 
