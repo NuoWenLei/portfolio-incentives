@@ -29,6 +29,8 @@ Numerai is a multi-strategy hedge fund [@BayartDeGermont2017] with $300 million 
 
 We demonstrate how to use the Rnumerai package to participate in the Numerai data science tournament.
 
+\newpage
+
 # Introduction
 
 Numerai is a hedge fund that invests based on the wisdom of the crowd. As Bloomberg describes [@Lee_2023], the company collates trading ideas submitted from participants who could be freelance data wonks, engineers and scientists with some free time. These submissions after being pooled, weighted by participant stakes, and neutralized to market risk factors, become the Meta Model that Numerai invests in. Based on the results of the "Meta Model" [@MetaModel] and the contribution of each participant's submission to the Meta Model, these participants are rewarded with its native cryptocurrency, Numeraire (NMR).
