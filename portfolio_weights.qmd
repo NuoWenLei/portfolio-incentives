@@ -3,6 +3,7 @@ title: "Let Users Submit Portfolio Weights"
 author: "Nuo Wen Lei and David Kane"
 format: pdf
 output: pdf_document
+bibliography: references.bib
 header-includes:
     - \usepackage{setspace}\doublespacing
     - \usepackage{amsmath}
@@ -352,6 +353,11 @@ Numerai crowd-sources participant-submissions to create and manage a multi-strat
 MMC, or Meta Model Contribution, measures a participant's model performance on live market targets after neutralization against the Meta Model. However, with neutralization, being unique from the "Meta Model" becomes one of the main goals of participants, which misaligns the objective of participants with that of Numerai. Additionally, MMC does not account for the live performance of the Numerai hedge fund, which should be an important factor in deciding what strategies to weigh more heavily.
 
 With portfolio weights, we introduce the payout formula with Meta Model performance, therefore focusing more on how participant submissions affect the result of the hedge fund rather than the uniqueness with regards to the "Meta Model". This method allows Numerai to value positively contributing strategies more when the hedge fund is performing poorly, which would increase the Sharpe Ratio of the fund's performance.
+
+# References
+
+::: {#refs}
+:::
 
 \newpage
 
