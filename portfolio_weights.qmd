@@ -1,5 +1,5 @@
 ---
-title: "Let Users Submit Portfolio Weights"
+title: "Incentivizing Participants in Crowd-Sourced Multi-Strategy Hedge Funds"
 author: "Nuo Wen Lei and David Kane"
 format: pdf
 output: pdf_document
