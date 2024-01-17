@@ -1,5 +1,5 @@
 ---
-title: "Incentivizing Participants in Crowd-Sourced Multi-Strategy Hedge Funds"
+title: "Better Incentives for Participants in Crowd-Sourced Hedge Funds"
 author: "Nuo Wen Lei and David Kane"
 format: pdf
 output: pdf_document
@@ -25,29 +25,66 @@ data <- tribble(
 
 # Abstract
 
-Numerai is a multi-strategy hedge fund [@BayartDeGermont2017] with $300 million in assets under management that collects participant strategies based on data that Numerai provides. Participants submit scores periodically for stocks in a pre-determined universe, and Numerai then combines these submissions into a "Meta Model". [@MetaModel] Participants are paid on the correlation between their scores and future returns. First, we propose that users submit portfolio weights instead of scores, and second that users are paid on the basis of their approximate marginal contribution to Numerai's overall Sharpe Ratio [@Sharpe1994].
-
-We demonstrate how to use the Rnumerai package to participate in the Numerai data science tournament.
+Numerai is a crowd-sourced hedge fund with $300 million in assets under management that collects participant trading ideas based on data that Numerai provides. Participants submit scores periodically for stocks in a pre-determined universe. Numerai combines these submissions into an overall score and then uses that score to create its actual portfolio. We introduce the Rnumerai package for participating in the Numerai tournament. Participants are paid on the correlation between their scores and future returns. We propose two changes. First, participants should submit portfolio weights instead of scores. Second, participants should be paid on the basis of their approximate marginal contribution to Numerai's overall Sharpe Ratio. 
 
 \newpage
 
 # Introduction
 
-Numerai is a hedge fund that invests based on the wisdom of the crowd. As Bloomberg describes [@Lee_2023], the company collates trading ideas submitted from participants who could be freelance data wonks, engineers and scientists with some free time. These submissions after being pooled, weighted by participant stakes, and neutralized to market risk factors, become the Meta Model that Numerai invests in. Based on the results of the "Meta Model" [@MetaModel] and the contribution of each participant's submission to the Meta Model, these participants are rewarded with its native cryptocurrency, Numeraire (NMR).
+Lee [-@Lee_2023] provides an overview of how the Numerai process works. The company collates trading ideas submitted from participants who could be freelance data wonks, engineers and scientists with some free time. These submissions after being pooled, weighted by participant stakes, and neutralized to market risk factors, become the "Meta Model" that Numerai invests in. Based on the results of the Meta Model and the contribution of each participant's submission to the Meta Model, these participants are rewarded with its native cryptocurrency, Numeraire or NMR for short.
 
 Numerai's submission system lets participants submit scores for each of the stocks. Numerai ranks these scores such that the magnitude of the scores are not important. The score of each stock for each participant's submission is weighted only by its relative rank to other scores provided in the submission. Additionally, Numerai obfuscates the data that they provide by anonymizing every stock and bucketizing and normalizing every feature. This obfuscation forces participants to use data science methods to create submission scores.
 
-Numerai currently evaluates participant submissions against the live market target using a method called MMC or Meta Model Contribution [@MMC]. This method first neutralizes all individual submissions to the "Meta Model", and then calculates the covariance between the live market target and each participant's neutralized submission. The idea is that a higher covariance represents a stronger unique positive contribution to the Meta Model, and therefore should be rewarded more.
+Numerai [-@MMC] describes their overall process of evaluating participant submissions with a method called Meta Model Contribution, or MMC. This method first neutralizes all individual submissions to the "Meta Model", and then calculates the covariance between the live market target and each participant's neutralized submission. The idea is that a higher covariance represents a stronger unique positive contribution to the Meta Model, and therefore should be rewarded more.
 
-However, we observe some flaws with the MMC payout system. First, the incentive of participants deviates from creating the best performing model to the most unique model. Second, it is difficult for a payout system like MMC to incorporate real-world constraints like liquidity and short locates into its calculations. Third, since the calculation is based on the "Meta Model", there is a lack of transparency for participants to calculate and understand how to act upon their MMC result.
+However, there are 3 flaws with the MMC payout system. First, participants are not incentivized to submit scores that improve Numerai's Sharpe Ratio. Introduced by Sharpe [~@14099b69-9042-3c4b-b38a-19078e0e0cc2], Sharpe Ratio measures investment success adjusted for the investment risk. Although Numerai uses Sharpe Raito as their key performance indicator, the inclusion of participant scores with low correlation to the Meta Model do not increase Numerai's overall Sharpe Ratio. Second, it is difficult for a payout system like MMC to incorporate real-world constraints like liquidity and short locates into its calculations. Third, since the calculation is based on the Meta Model, there is a lack of transparency for participants to calculate and understand how to act upon their MMC result.
 
-We introduce portfolio weights to more directly incenvitize participants. We define portfolio weights as a vector of N values where N is the number of stocks in the universe. Since Numerai invests in both long and short positions, the submitted weights should also allow negative values to represent short positions. Therefore, the constraints for a submission of weights is that the sum of all weights must be 0, the sum of all positive weights must be 1, and the sum of all negative weights must be -1. 
+We propose two fixes. First, we propose that participants should be able to submit weights instead of scores. We define portfolio weights as a vector of N values where N is the number of stocks in the universe. Since Numerai invests in both long and short positions, the submitted weights should also allow negative values to represent short positions. Therefore, the constraints for a submission of weights is that the sum of all weights must be 0, the sum of all positive weights must be 1, and the sum of all negative weights must be -1.
 
-Portfolio weights allow each participant's payout to be calculated individually, which differs from MMC. Due to this individuality, we can also introduce other individual incentives such as penalties for transaction costs or liquidity without worrying about how these penalties would affect the payment of other participants.
+The second change we porpose is to evaluate participants' portfolio weights based on their marginal contribution to Numerai's overall Sharpe Ratio. Numerai should provide greater reward for portfolio weights that perform well when most portfolios perform poorly as those weights contribute the most to Numerai's Sharpe Ratio. We also discuss ways to introduce other constraints like liquidity and short locates, thereby minimizing the influence of participant submissions that short stocks that cannot be borrowed or buy stocks that are too expensive to trade.
+
+# Rnumerai
+
+Rnumerai [~@Rnumerai] is a CRAN package that provides an R interface for participants to use the Numerai data science tournament API. Following Rnumerai, we provide some basic functions to participate in Numerai's data science tournament.
+
+Load the Rnumerai package.
+
+```{r, echo=TRUE, eval=FALSE}
+library(Rnumerai)
+```
+
+Download the latest data provided by Numerai, which is now V4.2 (Rain).
+
+```{r, echo=TRUE, eval=FALSE}
+download_dataset("v4.2/train.parquet", "train.parquet")
+download_dataset("v4.2/validation.parquet", "validation.parquet")
+download_dataset("v4.2/live.parquet", "live.parquet")
+download_dataset("v4.2/live_example_preds.parquet",
+                 "live_example_preds.parquet")
+download_dataset("v4.2/validation_example_preds.parquet",
+                 "validation_example_preds.parquet")
+download_dataset("v4.2/features.json", "features.json")
+```
+
+Load the downloaded data into R.
+
+```{r, echo=TRUE, eval=FALSE}
+data_train <- data.table::setDT(arrow::read_parquet("train.parquet"))
+data_validation <- data.table::setDT(arrow::read_parquet("validation.parquet"))
+data_live <- data.table::setDT(arrow::read_parquet("live.parquet"))
+```
+
+Given this data, users can use any data science methods to create scores. We make a tibble named `df` that has columns named `id` and `prediction`, representing our predicted score for every obfuscated stock. Then, we upload our predictions to the corresponding model registered on Numerai under the variable name `model_id`.
+
+```{r, echo=TRUE, eval=FALSE}
+upload_predictions(model_id = model_id, df=df)
+```
+
+Rnumerai is working with the constraints of the current Numerai contest, in which participants can only submit scores. It would be better if participants can submit weights.
 
 # Methodology
 
-## Definitions for Portfolio Weights as API
+Here are the details on portfolio weight instead of score submissions.
 
 $N$ is the number of stocks in the universe at a point in time and $i$ is an individual stock.
 \
@@ -321,11 +358,11 @@ We note that while $c$, $c_b$, $t$, $t_c$, $g$  are referred to as constants for
 
 # Conclusion
 
-Numerai crowd-sources participant-submissions to create and manage a multi-strategy hedge fund with $300 million in assets under management. A crucial component of crowd-sourced multi-strategy hedge funds like Numerai is their method of incentivizing participants to adjust their trading ideas to fit the hedge fund's needs. Numerai incentivizes participants by allowing participants to invest in their own model, through which they would win or lose money based on their model performance measured with MMC.
+Numerai crowd-sources participant submissions to create and manage a hedge fund with $300 million in assets under management. A crucial component of crowd-sourced hedge funds like Numerai is their method of incentivizing participants to adjust their trading ideas to fit the hedge fund's needs. Numerai incentivizes participants by allowing participants to invest in their own model, through which they would win or lose money based on their model performance measured with MMC.
 
-MMC, or Meta Model Contribution, measures a participant's model performance on live market targets after neutralization against the Meta Model. However, with neutralization, being unique from the "Meta Model" becomes one of the main goals of participants, which misaligns the objective of participants with that of Numerai. Additionally, MMC does not account for the live performance of the Numerai hedge fund, which should be an important factor in deciding what strategies to weigh more heavily.
+MMC, or Meta Model Contribution, measures a participant's model performance on live market targets after neutralization against the Meta Model. However, being scored on MMC, participants are not incentivized to submit scores that increase Numerai's Sharpe Ratio, which is Numerai's main goal. Additionally, MMC does not include real-world portfolio constraints such as liquidity or short locates, which should be an important factor for what submissions to weigh more heavily.
 
-With portfolio weights, we introduce the payout formula with Meta Model performance, therefore focusing more on how participant submissions affect the result of the hedge fund rather than the uniqueness with regards to the "Meta Model". This method allows Numerai to value positively contributing strategies more when the hedge fund is performing poorly, which would increase the Sharpe Ratio of the fund's performance.
+With portfolio weights, we introduce the payout formula with Meta Model performance, therefore focusing more on how participant submissions affect the result of the hedge fund rather than the uniqueness with regards to the Meta Model. This method allows Numerai to value positively contributing strategies more when the hedge fund is performing poorly, which would increase the Sharpe Ratio of the fund's portfolio.
 
 # References
 
