@@ -80,7 +80,7 @@ Given this data, users can use any data science methods to create scores. We mak
 upload_predictions(model_id = model_id, df=df)
 ```
 
-Rnumerai is working with the constraints of the current Numerai contest, in which participants can only submit scores. It would be better if participants can submit weights.
+Rnumerai is working with the constraints of the current Numerai contest, in which participants can only submit scores. It would be better if participants could submit weights.
 
 # Methodology
 
